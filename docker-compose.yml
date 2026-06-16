@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0-alpine
+    container_name: taskflow-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-taskflow}
+      MYSQL_USER: ${DB_USER:-taskflow}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-taskflowpass}
+      MYSQL_INITIALIZATON_FILES: /docker-entrypoint-initdb.d
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - taskflow-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Spring Boot Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: taskflow-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME:-taskflow}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-taskflow}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-taskflowpass}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_PROFILE_ACTIVE: ${SPRING_PROFILE:-prod}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-taskflow-secret-key-change-in-production}
+      JWT_EXPIRATION_TIME: ${JWT_EXPIRATION_TIME:-86400000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - taskflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+  # React Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: taskflow-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+    depends_on:
+      - backend
+    networks:
+      - taskflow-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Optional: phpMyAdmin for database management
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: taskflow-phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: ${DB_USER:-taskflow}
+      PMA_PASSWORD: ${DB_PASSWORD:-taskflowpass}
+      PMA_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+    depends_on:
+      - mysql
+    networks:
+      - taskflow-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  taskflow-network:
+    driver: bridge
