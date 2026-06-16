@@ -1,18 +1,15 @@
-version: '3.8'
-
 services:
   # MySQL Database
   mysql:
-    image: mysql:8.0-alpine
+    image: mysql:8.0
     container_name: taskflow-mysql
     ports:
-      - "3306:3306"
+      - "3307:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${DB_NAME:-taskflow}
       MYSQL_USER: ${DB_USER:-taskflow}
       MYSQL_PASSWORD: ${DB_PASSWORD:-taskflowpass}
-      MYSQL_INITIALIZATON_FILES: /docker-entrypoint-initdb.d
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -32,27 +29,21 @@ services:
       dockerfile: Dockerfile.backend
     container_name: taskflow-backend
     ports:
-      - "8080:8080"
+      - "8082:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME:-taskflow}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-taskflow}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-taskflowpass}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: "false"
-      SPRING_PROFILE_ACTIVE: ${SPRING_PROFILE:-prod}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-taskflow-secret-key-change-in-production}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-prod}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_EXPIRATION_TIME: ${JWT_EXPIRATION_TIME:-86400000}
     depends_on:
       mysql:
         condition: service_healthy
     networks:
       - taskflow-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
@@ -66,7 +57,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8082}
     depends_on:
       - backend
     networks:
@@ -78,7 +69,7 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # Optional: phpMyAdmin for database management
+  # phpMyAdmin
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: taskflow-phpmyadmin
@@ -97,7 +88,6 @@ services:
 
 volumes:
   mysql_data:
-    driver: local
 
 networks:
   taskflow-network:
