@@ -1,0 +1,27 @@
+# Frontend
+taskflow-frontend-v2/frontend/node_modules
+taskflow-frontend-v2/frontend/dist
+taskflow-frontend-v2/frontend/.env.local
+taskflow-frontend-v2/frontend/.DS_Store
+
+# Backend
+taskflow-backend-v2/backend/target
+taskflow-backend-v2/backend/.env
+taskflow-backend-v2/backend/.vscode
+taskflow-backend-v2/backend/.idea
+
+# Git
+.git
+.gitignore
+
+# General
+.DS_Store
+*.log
+*.md
+README.md
+LICENSE
+
+# Docker
+docker-compose.override.yml
+Dockerfile*
+.dockerignore
