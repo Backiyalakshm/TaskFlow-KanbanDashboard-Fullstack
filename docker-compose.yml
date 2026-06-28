@@ -1,5 +1,7 @@
 services:
-  # MySQL Database
+  # =========================
+  # MYSQL DATABASE
+  # =========================
   mysql:
     image: mysql:8.0
     container_name: taskflow-mysql
@@ -22,7 +24,9 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Spring Boot Backend
+  # =========================
+  # SPRING BOOT BACKEND
+  # =========================
   backend:
     build:
       context: .
@@ -31,14 +35,20 @@ services:
     ports:
       - "8082:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${DB_NAME:-taskflow}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/taskflow?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-taskflow}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-taskflowpass}
+
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: "false"
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-prod}
+      SPRING_PROFILES_ACTIVE: prod
+
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_EXPIRATION_TIME: ${JWT_EXPIRATION_TIME:-86400000}
+
+      # IMPORTANT FIX (NO PORT, ONLY DOMAIN)
+      CORS_ALLOWED_ORIGINS: https://taskflow-kanban.duckdns.org
+
     depends_on:
       mysql:
         condition: service_healthy
@@ -48,7 +58,9 @@ services:
     volumes:
       - ./logs:/app/logs
 
-  # React Frontend
+  # =========================
+  # REACT / VITE FRONTEND
+  # =========================
   frontend:
     build:
       context: .
@@ -57,20 +69,23 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: ${VITE_API_URL}
-      VITE_WS_URL: ${VITE_WS_URL}
+      # IMPORTANT FIX: NO localhost, ONLY DOMAIN
+      VITE_API_URL: https://taskflow-kanban.duckdns.org/api
+      VITE_WS_URL: wss://taskflow-kanban.duckdns.org/ws
     depends_on:
       - backend
     networks:
       - taskflow-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
       interval: 30s
       timeout: 10s
       retries: 3
-    restart: unless-stopped
 
-  # phpMyAdmin
+  # =========================
+  # PHPMYADMIN
+  # =========================
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: taskflow-phpmyadmin
@@ -87,9 +102,15 @@ services:
       - taskflow-network
     restart: unless-stopped
 
+# =========================
+# VOLUMES
+# =========================
 volumes:
   mysql_data:
 
+# =========================
+# NETWORK
+# =========================
 networks:
   taskflow-network:
     driver: bridge
